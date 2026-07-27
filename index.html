@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>三明治自己來｜記帳系統</title>
+<style>
+/* ══ 設計語言：台灣小店帳本感，深墨底＋紙白卡片 ══ */
+:root{
+  --ink:    #111820;
+  --paper:  #f5f1ea;
+  --card:   #ffffff;
+  --green:  #1a6b3a;
+  --green-lt:#d4edda;
+  --amber:  #b35c00;
+  --amber-lt:#fef3e2;
+  --red:    #8b1a1a;
+  --red-lt: #fdeaea;
+  --blue:   #1a3a6b;
+  --rule:   #d8d0c4;
+  --gray:   #f3f0ea;
+  --sans:   'PingFang TC','Noto Sans TC',system-ui,sans-serif;
+  --mono:   'SF Mono','Courier New',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:var(--ink);font-family:var(--sans);min-height:100vh}
+
+/* ── 頂部 Header ── */
+.app-header{
+  background:var(--ink);
+  padding:16px 16px 0;
+  position:sticky;top:0;z-index:100;
+  border-bottom:1px solid #2a3545;
+}
+.app-title{color:#fff;font-size:13px;letter-spacing:3px;text-transform:uppercase;opacity:.5;margin-bottom:2px}
+.app-brand{color:#fff;font-size:20px;font-weight:700;letter-spacing:-0.5px}
+.tab-bar{display:flex;gap:0;margin-top:14px}
+.tab{
+  flex:1;text-align:center;padding:10px 4px;font-size:12px;font-weight:600;
+  color:#888;border-bottom:2px solid transparent;cursor:pointer;
+  letter-spacing:1px;transition:.15s
+}
+.tab.active{color:#fff;border-bottom-color:var(--green)}
+
+/* ── 頁面容器 ── */
+.page{display:none;padding:16px;padding-bottom:80px}
+.page.active{display:block}
+
+/* ── 記帳入口卡片 ── */
+.entry-card{
+  background:var(--card);border-radius:12px;padding:20px;
+  margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.15)
+}
+.entry-label{font-size:11px;color:#888;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+.amount-row{display:flex;gap:8px;align-items:center;margin-bottom:16px}
+.amount-input{
+  flex:1;font-size:28px;font-family:var(--mono);font-weight:700;
+  border:none;border-bottom:2px solid var(--rule);padding:4px 0;
+  background:transparent;color:var(--ink);outline:none;width:100%
+}
+.amount-input::placeholder{color:#ccc}
+.nt-label{font-size:14px;color:#888;white-space:nowrap}
+
+.note-input{
+  width:100%;border:1px solid var(--rule);border-radius:8px;
+  padding:10px 12px;font-size:15px;background:var(--gray);
+  color:var(--ink);outline:none;margin-bottom:14px;
+  font-family:var(--sans)
+}
+.note-input:focus{border-color:var(--green)}
+
+/* 類別按鈕 */
+.cat-label{font-size:11px;color:#888;letter-spacing:2px;margin-bottom:8px}
+.cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
+.cat-btn{
+  padding:10px 4px;border-radius:8px;border:1.5px solid var(--rule);
+  background:var(--gray);font-size:12px;color:#555;cursor:pointer;
+  text-align:center;transition:.1s;line-height:1.3
+}
+.cat-btn.selected{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+/* 代墊切換 */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 14px;background:var(--gray);border-radius:8px;margin-bottom:16px}
+.toggle-label{font-size:14px;color:var(--ink);font-weight:500}
+.toggle-sub{font-size:11px;color:#888;margin-top:1px}
+.toggle{
+  width:44px;height:24px;background:var(--rule);border-radius:12px;
+  position:relative;cursor:pointer;transition:.2s;flex-shrink:0
+}
+.toggle.on{background:var(--amber)}
+.toggle::after{
+  content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;
+  background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.2)
+}
+.toggle.on::after{left:22px}
+
+/* 送出按鈕 */
+.submit-btn{
+  width:100%;padding:16px;background:var(--green);color:#fff;
+  border:none;border-radius:10px;font-size:16px;font-weight:700;
+  cursor:pointer;letter-spacing:1px;transition:.1s
+}
+.submit-btn:active{transform:scale(.98)}
+.submit-btn:disabled{background:#ccc;cursor:not-allowed}
+
+/* ── 三姐代墊區塊 ── */
+.daedal-banner{
+  background:var(--amber-lt);border:1.5px solid var(--amber);
+  border-radius:12px;padding:16px;margin-bottom:16px
+}
+.db-top{display:flex;justify-content:space-between;align-items:flex-start}
+.db-label{font-size:11px;color:var(--amber);letter-spacing:2px;font-weight:600}
+.db-total{font-size:28px;font-family:var(--mono);font-weight:700;color:var(--amber)}
+.db-sub{font-size:11px;color:var(--amber);opacity:.7;margin-top:2px}
+.settle-btn{
+  background:var(--amber);color:#fff;border:none;border-radius:8px;
+  padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer
+}
+
+/* 代墊明細 */
+.daedal-list{margin-top:12px;border-top:1px solid rgba(179,92,0,.2);padding-top:10px}
+.daedal-item{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:7px 0;border-bottom:1px solid rgba(179,92,0,.1);font-size:13px
+}
+.di-left{flex:1}
+.di-name{color:var(--ink);font-weight:500}
+.di-date{font-size:11px;color:#999;margin-top:1px}
+.di-amt{font-family:var(--mono);font-weight:700;color:var(--amber)}
+
+/* 結清紀錄 */
+.settle-record{
+  background:var(--green-lt);border:1px solid var(--green);
+  border-radius:8px;padding:10px 12px;margin-top:8px;
+  display:flex;justify-content:space-between;align-items:center;font-size:13px
+}
+.sr-label{color:var(--green);font-weight:600}
+.sr-amt{font-family:var(--mono);color:var(--green);font-weight:700}
+
+/* ── 流水帳列表 ── */
+.ledger-section{margin-bottom:20px}
+.section-date{
+  font-size:11px;color:#888;letter-spacing:2px;padding:6px 0;
+  border-bottom:1px solid #2a3545;margin-bottom:8px
+}
+.ledger-item{
+  background:var(--card);border-radius:10px;padding:12px 14px;
+  margin-bottom:6px;display:flex;align-items:center;gap:10px
+}
+.li-cat{font-size:18px;flex-shrink:0}
+.li-body{flex:1;min-width:0}
+.li-name{font-size:14px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li-meta{font-size:11px;color:#999;margin-top:2px}
+.li-right{text-align:right;flex-shrink:0}
+.li-amt{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--ink)}
+.li-badge{font-size:10px;background:var(--amber-lt);color:var(--amber);
+  padding:2px 6px;border-radius:4px;margin-top:3px;display:inline-block;font-weight:600}
+
+/* ── 月度報表 ── */
+.month-selector{display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px}
+.month-chip{
+  white-space:nowrap;padding:7px 14px;border-radius:20px;
+  font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #2a3545;
+  color:#888;background:transparent;flex-shrink:0
+}
+.month-chip.active{background:var(--green);color:#fff;border-color:var(--green)}
+
+.report-card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:12px}
+.rc-title{font-size:11px;color:#888;letter-spacing:2px;margin-bottom:12px}
+.rc-row{display:flex;justify-content:space-between;padding:7px 0;
+  border-bottom:1px solid var(--gray);font-size:13px}
+.rc-row:last-child{border:none}
+.rc-label{color:#555}
+.rc-val{font-family:var(--mono);font-weight:600;color:var(--ink)}
+.rc-val.amber{color:var(--amber)}
+.rc-val.green{color:var(--green)}
+.rc-val.red{color:var(--red)}
+.rc-total{
+  display:flex;justify-content:space-between;margin-top:10px;
+  padding:12px;background:var(--ink);border-radius:8px
+}
+.rc-total-label{color:#aaa;font-size:13px}
+.rc-total-val{font-family:var(--mono);font-size:18px;font-weight:700;color:#7effc0}
+
+/* 圓餅視覺條 */
+.bar-wrap{height:8px;background:var(--gray);border-radius:4px;margin-top:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:.3s}
+
+/* ── Toast ── */
+.toast{
+  position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--ink);color:#fff;padding:10px 20px;border-radius:20px;
+  font-size:13px;opacity:0;transition:.2s;pointer-events:none;z-index:999;white-space:nowrap
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── 底部導覽 ── */
+.bottom-nav{
+  position:fixed;bottom:0;left:0;right:0;background:var(--ink);
+  border-top:1px solid #2a3545;display:flex;
+  padding:8px 0 env(safe-area-inset-bottom,8px);z-index:100
+}
+.nav-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  gap:3px;cursor:pointer;padding:4px 0;
+}
+.nav-icon{font-size:20px;line-height:1}
+.nav-label{font-size:10px;color:#666;letter-spacing:.5px}
+.nav-item.active .nav-label{color:var(--green)}
+
+/* ── 結清modal ── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;
+  display:none;align-items:flex-end
+}
+.modal-overlay.show{display:flex}
+.modal-sheet{
+  background:#fff;border-radius:20px 20px 0 0;padding:24px 20px 40px;
+  width:100%;animation:slideUp .25s ease
+}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:16px;color:var(--ink)}
+.modal-info{background:var(--amber-lt);border-radius:8px;padding:12px;margin-bottom:16px}
+.mi-label{font-size:11px;color:var(--amber)}
+.mi-val{font-size:24px;font-family:var(--mono);font-weight:700;color:var(--amber)}
+.modal-input{
+  width:100%;border:2px solid var(--rule);border-radius:8px;
+  padding:12px;font-size:18px;font-family:var(--mono);
+  background:var(--gray);color:var(--ink);outline:none;margin-bottom:12px
+}
+.modal-input:focus{border-color:var(--amber)}
+.modal-btn{
+  width:100%;padding:15px;border:none;border-radius:10px;
+  font-size:15px;font-weight:700;cursor:pointer;margin-bottom:8px
+}
+.modal-btn.confirm{background:var(--green);color:#fff}
+.modal-btn.cancel{background:var(--gray);color:#555}
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="app-title">拾起百味有限公司</div>
+  <div class="app-brand">三明治自己來　記帳系統</div>
+  <div class="tab-bar">
+    <div class="tab active" onclick="switchTab('entry')">記帳</div>
+    <div class="tab" onclick="switchTab('daedal')">三姐代墊</div>
+    <div class="tab" onclick="switchTab('ledger')">流水帳</div>
+    <div class="tab" onclick="switchTab('report')">月報表</div>
+  </div>
+</div>
+
+<!-- ══ 頁面1：記帳 ══ -->
+<div class="page active" id="page-entry">
+  <div class="entry-card">
+    <div class="entry-label">金額</div>
+    <div class="amount-row">
+      <span class="nt-label">NT$</span>
+      <input class="amount-input" id="inp-amount" type="number" inputmode="decimal" placeholder="0" oninput="updateSubmit()">
+    </div>
+
+    <div class="entry-label">品項說明</div>
+    <input class="note-input" id="inp-note" type="text" placeholder="例：裕軒食材、真空袋、菜錢運費..." oninput="autoCategory();updateSubmit()">
+
+    <div class="cat-label">類別（可自動偵測）</div>
+    <div class="cat-grid" id="cat-grid">
+      <div class="cat-btn" data-cat="🥩食材" onclick="selectCat(this)">🥩<br>食材原料</div>
+      <div class="cat-btn" data-cat="📦包材" onclick="selectCat(this)">📦<br>包材耗材</div>
+      <div class="cat-btn" data-cat="🚗運費" onclick="selectCat(this)">🚗<br>運費物流</div>
+      <div class="cat-btn" data-cat="👥人事" onclick="selectCat(this)">👥<br>人事薪資</div>
+      <div class="cat-btn" data-cat="💻系統" onclick="selectCat(this)">💻<br>系統設備</div>
+      <div class="cat-btn" data-cat="🎉福利" onclick="selectCat(this)">🎉<br>員工福利</div>
+      <div class="cat-btn" data-cat="⛽油費" onclick="selectCat(this)">⛽<br>油費交通</div>
+      <div class="cat-btn" data-cat="🏠水電" onclick="selectCat(this)">🏠<br>水電雜費</div>
+      <div class="cat-btn" data-cat="📋稅費" onclick="selectCat(this)">📋<br>稅費保費</div>
+      <div class="cat-btn" data-cat="↩️退款" onclick="selectCat(this)">↩️<br>退款賠償</div>
+      <div class="cat-btn" data-cat="💰加給" onclick="selectCat(this)">💰<br>職務加給</div>
+      <div class="cat-btn" data-cat="📌其他" onclick="selectCat(this)">📌<br>其他</div>
+    </div>
+
+    <div class="toggle-row" onclick="toggleDaedal()">
+      <div>
+        <div class="toggle-label">三姐代墊</div>
+        <div class="toggle-sub" id="daedal-sub">這筆是三姐先墊的</div>
+      </div>
+      <div class="toggle" id="daedal-toggle"></div>
+    </div>
+
+    <button class="submit-btn" id="submit-btn" onclick="addEntry()" disabled>記帳</button>
+  </div>
+
+  <!-- 今日快覽 -->
+  <div class="report-card" id="today-summary">
+    <div class="rc-title">TODAY 今日支出</div>
+    <div id="today-rows"><div style="color:#ccc;font-size:13px;text-align:center;padding:12px">尚無記錄</div></div>
+  </div>
+</div>
+
+<!-- ══ 頁面2：三姐代墊 ══ -->
+<div class="page" id="page-daedal">
+  <div class="daedal-banner">
+    <div class="db-top">
+      <div>
+        <div class="db-label">三姐代墊累計</div>
+        <div class="db-total" id="daedal-total">$0</div>
+        <div class="db-sub" id="daedal-count">共 0 筆</div>
+      </div>
+      <button class="settle-btn" onclick="openSettle()">結清</button>
+    </div>
+    <div class="daedal-list" id="daedal-list">
+      <div style="color:var(--amber);opacity:.6;font-size:13px;text-align:center;padding:8px">尚無代墊紀錄</div>
+    </div>
+  </div>
+  <!-- 結清紀錄 -->
+  <div id="settle-history"></div>
+</div>
+
+<!-- ══ 頁面3：流水帳 ══ -->
+<div class="page" id="page-ledger">
+  <div id="ledger-content">
+    <div style="color:#888;font-size:13px;text-align:center;padding:40px">尚無流水帳記錄</div>
+  </div>
+</div>
+
+<!-- ══ 頁面4：月報表 ══ -->
+<div class="page" id="page-report">
+  <div class="month-selector" id="month-selector"></div>
+
+  <div class="report-card">
+    <div class="rc-title">本月支出分類</div>
+    <div id="cat-report">
+      <div style="color:#ccc;font-size:13px;text-align:center;padding:12px">尚無資料</div>
+    </div>
+  </div>
+
+  <div class="report-card">
+    <div class="rc-title">三姐代墊 vs 公司自付</div>
+    <div id="split-report">
+      <div style="color:#ccc;font-size:13px;text-align:center;padding:12px">尚無資料</div>
+    </div>
+  </div>
+
+  <div class="report-card" style="background:var(--ink);color:#fff">
+    <div class="rc-title" style="color:#888">月度總結</div>
+    <div id="monthly-summary">
+      <div style="color:#888;font-size:13px;text-align:center;padding:12px">尚無資料</div>
+    </div>
+  </div>
+
+  <button class="submit-btn" onclick="exportReport()" style="background:var(--blue)">📋 複製財報格式</button>
+</div>
+
+<!-- ══ 結清Modal ══ -->
+<div class="modal-overlay" id="settle-modal">
+  <div class="modal-sheet">
+    <div class="modal-title">🤝 三姐代墊結清</div>
+    <div class="modal-info">
+      <div class="mi-label">目前累計代墊</div>
+      <div class="mi-val" id="modal-daedal-total">$0</div>
+    </div>
+    <div class="entry-label" style="margin-bottom:6px">實際結清金額</div>
+    <input class="modal-input" id="settle-amount" type="number" inputmode="decimal" placeholder="輸入金額">
+    <div class="entry-label" style="margin-bottom:6px">結清日期</div>
+    <input class="modal-input" id="settle-date" type="date" style="font-family:var(--sans);font-size:15px">
+    <button class="modal-btn confirm" onclick="confirmSettle()">確認結清</button>
+    <button class="modal-btn cancel" onclick="closeSettle()">取消</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- 底部導覽 -->
+<div class="bottom-nav">
+  <div class="nav-item active" onclick="switchTab('entry')">
+    <div class="nav-icon">✏️</div>
+    <div class="nav-label">記帳</div>
+  </div>
+  <div class="nav-item" onclick="switchTab('daedal')">
+    <div class="nav-icon">💳</div>
+    <div class="nav-label">代墊</div>
+  </div>
+  <div class="nav-item" onclick="switchTab('ledger')">
+    <div class="nav-icon">📒</div>
+    <div class="nav-label">流水帳</div>
+  </div>
+  <div class="nav-item" onclick="switchTab('report')">
+    <div class="nav-icon">📊</div>
+    <div class="nav-label">月報表</div>
+  </div>
+</div>
+
+<script>
+// ══ 資料儲存 ══
+const DB = {
+  get entries(){ try{ return JSON.parse(localStorage.getItem('sw_entries')||'[]') }catch{return[]} },
+  set entries(v){ localStorage.setItem('sw_entries', JSON.stringify(v)) },
+  get settles(){ try{ return JSON.parse(localStorage.getItem('sw_settles')||'[]') }catch{return[]} },
+  set settles(v){ localStorage.setItem('sw_settles', JSON.stringify(v)) },
+};
+
+// 自動類別偵測
+const CAT_RULES = [
+  ['🥩食材', ['裕軒','鼎鮮','起司絲','雞腿','開心果','冷凍','小麥蛋白','芒果乾','腰果','酥皮絲','茶粉','醬村行','泰茶','食材','肉品']],
+  ['📦包材', ['真空袋','紙箱','掏寶','袋','醬料盒','包材','耗材']],
+  ['🚗運費', ['菜錢','運費','物流']],
+  ['👥人事', ['主廚','總監','林淑媛','張炳銘','薪資','勞務','保費','勞保','健保','加保']],
+  ['💻系統', ['官網','Claude','訂閱','系統','設備','網站']],
+  ['🎉福利', ['慶功','吃飯','福利','餐']],
+  ['⛽油費', ['加油','油費','油']],
+  ['🏠水電', ['電費','水電','殺蟑','冷氣','水','電']],
+  ['📋稅費', ['健保費','營業稅','二代健保','稅','費']],
+  ['↩️退款', ['退款','賠償','退貨','退']],
+];
+
+let selectedCat = null;
+let isDaedal = false;
+
+function autoCategory(){
+  const note = document.getElementById('inp-note').value;
+  if(!note) return;
+  for(const [cat, keywords] of CAT_RULES){
+    if(keywords.some(k => note.includes(k))){
+      document.querySelectorAll('.cat-btn').forEach(b=>{
+        b.classList.toggle('selected', b.dataset.cat===cat);
+      });
+      selectedCat = cat;
+      return;
+    }
+  }
+}
+
+function selectCat(el){
+  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedCat = el.dataset.cat;
+  updateSubmit();
+}
+
+function toggleDaedal(){
+  isDaedal = !isDaedal;
+  const t = document.getElementById('daedal-toggle');
+  t.classList.toggle('on', isDaedal);
+  document.getElementById('daedal-sub').textContent =
+    isDaedal ? '✅ 三姐代墊' : '這筆是三姐先墊的';
+}
+
+function updateSubmit(){
+  const amt = parseFloat(document.getElementById('inp-amount').value);
+  const note = document.getElementById('inp-note').value.trim();
+  document.getElementById('submit-btn').disabled = !(amt > 0 && note);
+}
+
+function addEntry(){
+  const amt  = parseFloat(document.getElementById('inp-amount').value);
+  const note = document.getElementById('inp-note').value.trim();
+  const cat  = selectedCat || '📌其他';
+  const now  = new Date();
+  const dateStr = now.toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'}).replace('/','/');
+  const entry = {
+    id: Date.now(),
+    date: now.toISOString().slice(0,10),
+    dateStr,
+    amount: amt,
+    note,
+    cat,
+    daedal: isDaedal,
+  };
+  const entries = DB.entries;
+  entries.unshift(entry);
+  DB.entries = entries;
+
+  // reset
+  document.getElementById('inp-amount').value='';
+  document.getElementById('inp-note').value='';
+  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('selected'));
+  selectedCat=null; isDaedal=false;
+  document.getElementById('daedal-toggle').classList.remove('on');
+  document.getElementById('daedal-sub').textContent='這筆是三姐先墊的';
+  document.getElementById('submit-btn').disabled=true;
+
+  showToast(`✅ 已記錄 NT$${amt.toLocaleString()} ${isDaedal?'(代墊)':''}`);
+  renderAll();
+}
+
+// ══ 渲染 ══
+function renderAll(){
+  renderToday();
+  renderDaedal();
+  renderLedger();
+  renderReport();
+}
+
+function renderToday(){
+  const today = new Date().toISOString().slice(0,10);
+  const todayEntries = DB.entries.filter(e=>e.date===today);
+  const container = document.getElementById('today-rows');
+  if(!todayEntries.length){
+    container.innerHTML='<div style="color:#ccc;font-size:13px;text-align:center;padding:12px">尚無記錄</div>';
+    return;
+  }
+  const total = todayEntries.reduce((s,e)=>s+e.amount,0);
+  const daedal = todayEntries.filter(e=>e.daedal).reduce((s,e)=>s+e.amount,0);
+  container.innerHTML = todayEntries.map(e=>`
+    <div class="rc-row">
+      <span class="rc-label">${e.cat.slice(0,2)} ${e.note}</span>
+      <span class="rc-val ${e.daedal?'amber':''}">$${e.amount.toLocaleString()}</span>
+    </div>
+  `).join('') + `
+    <div class="rc-total">
+      <span class="rc-total-label">今日合計${daedal?`（代墊$${daedal.toLocaleString()}）`:''}</span>
+      <span style="font-family:var(--mono);font-size:16px;font-weight:700;color:#7effc0">$${total.toLocaleString()}</span>
+    </div>`;
+}
+
+function renderDaedal(){
+  const entries = DB.entries;
+  const settles = DB.settles;
+
+  // 找尚未結清的代墊：最後一次結清日期之後的
+  const lastSettle = settles.length ? settles[settles.length-1].date : '2000-01-01';
+  const unsettled = entries.filter(e=>e.daedal && e.date > lastSettle);
+  const total = unsettled.reduce((s,e)=>s+e.amount,0);
+
+  document.getElementById('daedal-total').textContent = `$${total.toLocaleString()}`;
+  document.getElementById('daedal-count').textContent = `共 ${unsettled.length} 筆`;
+  document.getElementById('modal-daedal-total').textContent = `$${total.toLocaleString()}`;
+
+  const list = document.getElementById('daedal-list');
+  if(!unsettled.length){
+    list.innerHTML='<div style="color:var(--amber);opacity:.6;font-size:13px;text-align:center;padding:8px">✅ 目前無未結清代墊</div>';
+  } else {
+    list.innerHTML = unsettled.map(e=>`
+      <div class="daedal-item">
+        <div class="di-left">
+          <div class="di-name">${e.cat.slice(0,2)} ${e.note}</div>
+          <div class="di-date">${e.dateStr}</div>
+        </div>
+        <div class="di-amt">$${e.amount.toLocaleString()}</div>
+      </div>`).join('');
+  }
+
+  // 結清歷史
+  const sh = document.getElementById('settle-history');
+  if(settles.length){
+    sh.innerHTML = settles.slice().reverse().map(s=>`
+      <div class="settle-record">
+        <div>
+          <div class="sr-label">✅ 已結清</div>
+          <div style="font-size:11px;color:#555;margin-top:2px">${s.date}（${s.note||''}）</div>
+        </div>
+        <div class="sr-amt">$${s.amount.toLocaleString()}</div>
+      </div>`).join('');
+  } else {
+    sh.innerHTML='';
+  }
+}
+
+function renderLedger(){
+  const entries = DB.entries;
+  const container = document.getElementById('ledger-content');
+  if(!entries.length){
+    container.innerHTML='<div style="color:#888;font-size:13px;text-align:center;padding:40px">尚無流水帳記錄</div>';
+    return;
+  }
+  // 按日期分組
+  const groups = {};
+  entries.forEach(e=>{
+    if(!groups[e.date]) groups[e.date]=[];
+    groups[e.date].push(e);
+  });
+  container.innerHTML = Object.keys(groups).sort((a,b)=>b.localeCompare(a)).map(date=>{
+    const dayEntries = groups[date];
+    const total = dayEntries.reduce((s,e)=>s+e.amount,0);
+    const d = new Date(date+'T00:00:00');
+    const label = d.toLocaleDateString('zh-TW',{month:'long',day:'numeric',weekday:'short'});
+    return `<div class="ledger-section">
+      <div class="section-date">${label}　小計 $${total.toLocaleString()}</div>
+      ${dayEntries.map(e=>`
+        <div class="ledger-item">
+          <div class="li-cat">${e.cat.slice(0,2)}</div>
+          <div class="li-body">
+            <div class="li-name">${e.note}</div>
+            <div class="li-meta">${e.cat.slice(2)}</div>
+          </div>
+          <div class="li-right">
+            <div class="li-amt">$${e.amount.toLocaleString()}</div>
+            ${e.daedal?'<div class="li-badge">三姐代墊</div>':''}
+          </div>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+function renderReport(){
+  const entries = DB.entries;
+  // 取得所有月份
+  const months = [...new Set(entries.map(e=>e.date.slice(0,7)))].sort((a,b)=>b.localeCompare(a));
+
+  const sel = document.getElementById('month-selector');
+  if(!months.length){ sel.innerHTML=''; return; }
+
+  const currentMonth = sel.dataset.selected || months[0];
+  sel.dataset.selected = currentMonth;
+  sel.innerHTML = months.map(m=>`
+    <div class="month-chip ${m===currentMonth?'active':''}" onclick="selectMonth('${m}')">${m.replace('-','年')}月</div>
+  `).join('');
+
+  const mEntries = entries.filter(e=>e.date.startsWith(currentMonth));
+  const total = mEntries.reduce((s,e)=>s+e.amount,0);
+  const daedal = mEntries.filter(e=>e.daedal).reduce((s,e)=>s+e.amount,0);
+  const company = total - daedal;
+
+  // 類別彙總
+  const catTotals = {};
+  mEntries.forEach(e=>{
+    if(!catTotals[e.cat]) catTotals[e.cat]=0;
+    catTotals[e.cat]+=e.amount;
+  });
+
+  document.getElementById('cat-report').innerHTML = Object.entries(catTotals)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([cat,amt])=>`
+      <div class="rc-row">
+        <span class="rc-label">${cat}</span>
+        <div style="text-align:right">
+          <div class="rc-val">$${amt.toLocaleString()}</div>
+          <div class="bar-wrap" style="width:100px">
+            <div class="bar-fill" style="width:${Math.min(100,amt/total*100).toFixed(1)}%;background:var(--green)"></div>
+          </div>
+        </div>
+      </div>`).join('');
+
+  document.getElementById('split-report').innerHTML = `
+    <div class="rc-row"><span class="rc-label">🟠 三姐代墊</span><span class="rc-val amber">$${daedal.toLocaleString()}</span></div>
+    <div class="rc-row"><span class="rc-label">🔵 公司自付</span><span class="rc-val">$${company.toLocaleString()}</span></div>
+    <div class="rc-row"><span class="rc-label">合計</span><span class="rc-val green">$${total.toLocaleString()}</span></div>
+  `;
+
+  document.getElementById('monthly-summary').innerHTML = `
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+      <span style="color:#aaa;font-size:13px">本月支出合計</span>
+      <span style="font-family:var(--mono);font-size:20px;font-weight:700;color:#7effc0">$${total.toLocaleString()}</span>
+    </div>
+    <div style="font-size:11px;color:#666;line-height:1.8">
+      共 ${mEntries.length} 筆　｜　
+      代墊 $${daedal.toLocaleString()}（${total?Math.round(daedal/total*100):0}%）　｜　
+      自付 $${company.toLocaleString()}
+    </div>`;
+}
+
+function selectMonth(m){
+  const sel = document.getElementById('month-selector');
+  sel.dataset.selected = m;
+  renderReport();
+}
+
+// ══ 結清 ══
+function openSettle(){
+  document.getElementById('settle-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('settle-amount').value='';
+  document.getElementById('settle-modal').classList.add('show');
+}
+function closeSettle(){ document.getElementById('settle-modal').classList.remove('show') }
+function confirmSettle(){
+  const amt  = parseFloat(document.getElementById('settle-amount').value);
+  const date = document.getElementById('settle-date').value;
+  if(!amt||!date){ showToast('請填入金額和日期'); return; }
+  const settles = DB.settles;
+  settles.push({ id:Date.now(), amount:amt, date, note:`${date}結清` });
+  DB.settles = settles;
+  closeSettle();
+  showToast(`✅ 已記錄結清 $${amt.toLocaleString()}`);
+  renderAll();
+}
+
+// ══ 匯出財報格式 ══
+function exportReport(){
+  const sel = document.getElementById('month-selector');
+  const m = sel.dataset.selected;
+  if(!m){ showToast('請先選擇月份'); return; }
+  const entries = DB.entries.filter(e=>e.date.startsWith(m));
+  const total   = entries.reduce((s,e)=>s+e.amount,0);
+  const daedal  = entries.filter(e=>e.daedal).reduce((s,e)=>s+e.amount,0);
+
+  const catTotals = {};
+  entries.forEach(e=>{ catTotals[e.cat]=(catTotals[e.cat]||0)+e.amount });
+
+  const text = [
+    `【${m.replace('-','年')}月 支出彙整】`,
+    `總支出：$${total.toLocaleString()}`,
+    `三姐代墊：$${daedal.toLocaleString()}　公司自付：$${(total-daedal).toLocaleString()}`,
+    '',
+    ...Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).map(([c,a])=>`${c}：$${a.toLocaleString()}`),
+    '',
+    '--- 代墊明細 ---',
+    ...entries.filter(e=>e.daedal).map(e=>`${e.dateStr} ${e.note} $${e.amount.toLocaleString()}`),
+  ].join('\n');
+
+  navigator.clipboard.writeText(text).then(()=>showToast('✅ 已複製財報格式'));
+}
+
+// ══ 工具 ══
+function switchTab(tab){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+tab).classList.add('active');
+  const tabs = ['entry','daedal','ledger','report'];
+  const idx  = tabs.indexOf(tab);
+  document.querySelectorAll('.tab')[idx].classList.add('active');
+  document.querySelectorAll('.nav-item')[idx].classList.add('active');
+  renderAll();
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+// 初始化
+renderAll();
+</script>
+</body>
+</html>
