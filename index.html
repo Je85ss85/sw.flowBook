@@ -577,33 +577,32 @@ function renderLedger(){
     container.innerHTML='<div style="color:#888;font-size:13px;text-align:center;padding:40px">尚無流水帳記錄</div>';
     return;
   }
-  // 按日期分組
   const groups = {};
   entries.forEach(e=>{
     if(!groups[e.date]) groups[e.date]=[];
     groups[e.date].push(e);
   });
-  container.innerHTML = Object.keys(groups).sort((a,b)=>b.localeCompare(a)).map(date=>{
+  let html = '';
+  Object.keys(groups).sort((a,b)=>b.localeCompare(a)).forEach(date=>{
     const dayEntries = groups[date];
     const total = dayEntries.reduce((s,e)=>s+e.amount,0);
     const d = new Date(date+'T00:00:00');
     const label = d.toLocaleDateString('zh-TW',{month:'long',day:'numeric',weekday:'short'});
-    return `<div class="ledger-section">
-      <div class="section-date">${label}　小計 $${total.toLocaleString()}</div>
-      ${dayEntries.map(e=>`
-        <div class="ledger-item">
-          <div class="li-cat">${e.cat.slice(0,2)}</div>
-          <div class="li-body">
-            <div class="li-name">${e.note}</div>
-            <div class="li-meta">${e.cat.slice(2)}</div>
-          </div>
-          <div class="li-right">
-            <div class="li-amt">$${e.amount.toLocaleString()}</div>
-            ${e.daedal?'<div class="li-badge">三姐代墊</div>':''}
-          </div>
-        </div>`).join('')}
-    </div>`;
-  }).join('');
+    html += '<div class="ledger-section">';
+    html += '<div class="section-date">'+label+'　小計 $'+total.toLocaleString()+'</div>';
+    dayEntries.forEach(e=>{
+      html += '<div class="ledger-item">';
+      html += '<div class="li-cat">'+e.cat.slice(0,2)+'</div>';
+      html += '<div class="li-body"><div class="li-name">'+e.note+'</div><div class="li-meta">'+e.cat.slice(2)+'</div></div>';
+      html += '<div class="li-right">';
+      html += '<div class="li-amt">$'+e.amount.toLocaleString()+'</div>';
+      if(e.daedal) html += '<div class="li-badge">三姐代墊</div>';
+      html += '<div class="del-btn" onclick="deleteEntry('+e.id+',event)">✕ 刪除</div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+  });
+  container.innerHTML = html;
 }
 
 function renderReport(){
@@ -763,3 +762,4 @@ renderAll();
 </script>
 </body>
 </html>
+            <div onclick="deleteEntry(${{e.id}},event)" style="font-size:11px;color:#bbb;cursor:pointer;text-align:right;margin-top:4px">✕ 刪除</div>
