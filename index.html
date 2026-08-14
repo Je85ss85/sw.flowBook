@@ -346,7 +346,11 @@ body{background:var(--ink);font-family:var(--sans);min-height:100vh}
     <div style="color:#888;font-size:13px;text-align:center;padding:40px">尚無流水帳記錄</div>
   </div>
 
-  <button class="submit-btn" style="background:var(--blue);margin-top:14px" onclick="exportAllData()">📤 匯出全部資料（備份）</button>
+  <div style="display:flex;gap:8px;margin-top:14px">
+    <select id="ledger-export-month" style="flex:1;padding:0 12px;border-radius:10px;border:1.5px solid #2a3545;
+      background:var(--card);color:var(--ink);font-size:14px;font-weight:600"></select>
+    <button class="submit-btn" style="background:var(--blue);flex:0 0 auto;width:auto;padding:16px 20px" onclick="exportLedgerMonth()">📤 匯出</button>
+  </div>
 </div>
 
 <!-- ══ 頁面4：月報表 ══ -->
@@ -392,16 +396,9 @@ body{background:var(--ink);font-family:var(--sans);min-height:100vh}
   <div class="modal-sheet">
     <div class="modal-title">📥 貼上歷史營運總結</div>
     <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.7">
-      每月一段，欄位用「標籤：數值」，例如：<br>
-      月份：2026-07<br>
-      營收：500000<br>
-      稅額：20000<br>
-      毛利率：45%<br>
-      淨利率：12%<br>
-      保費：14281<br>
-      多個月份請空行分隔
+      直接貼上你平常打的那段文字就可以，會自動抓營收/毛利率/淨利/淨利率/人事薪資/實際保費支出等數字，其餘原文照樣保留顯示。會存到「目前選中的月份分頁」，記得先在上面點好要匯入的月份。
     </div>
-    <textarea id="finance-import-text" rows="8" class="note-input" style="font-family:var(--mono);font-size:13px" placeholder="月份：2026-07&#10;營收：500000&#10;稅額：20000&#10;毛利率：45%&#10;淨利率：12%&#10;保費：14281"></textarea>
+    <textarea id="finance-import-text" rows="8" class="note-input" style="font-family:var(--mono);font-size:13px" placeholder="✅ 7月 未稅營收$585,116｜毛利率63.92%｜淨利$170,113（29.07%）&#10;7月人事薪資（共 $154,658）...&#10;7月實際支出保費（6月份勞健保共 $21,373）"></textarea>
     <button class="modal-btn confirm" onclick="confirmFinanceImport()">匯入</button>
     <button class="modal-btn cancel" onclick="closeFinanceImport()">取消</button>
   </div>
@@ -665,13 +662,18 @@ let ledgerOpenMonths = null;
 function renderLedger(){
   const entries = DB.entries;
   const container = document.getElementById('ledger-content');
+  const exportSel = document.getElementById('ledger-export-month');
   if(!entries.length){
     container.innerHTML='<div style="color:#888;font-size:13px;text-align:center;padding:40px">尚無流水帳記錄</div>';
+    exportSel.innerHTML='';
     return;
   }
 
   const months = [...new Set(entries.map(e=>e.date.slice(0,7)))].sort((a,b)=>b.localeCompare(a));
   if(!ledgerOpenMonths) ledgerOpenMonths = new Set([months[0]]);
+
+  const keepSelected = months.includes(exportSel.value) ? exportSel.value : months[0];
+  exportSel.innerHTML = months.map(m=>`<option value="${m}" ${m===keepSelected?'selected':''}>${m.replace('-','年')}月</option>`).join('');
 
   let html = '';
   months.forEach(m=>{
@@ -733,16 +735,18 @@ function renderReport(){
 
   document.getElementById('cat-report').innerHTML = Object.entries(catTotals)
     .sort((a,b)=>b[1]-a[1])
-    .map(([cat,amt])=>`
+    .map(([cat,amt])=>{
+      const pct = total ? (amt/total*100).toFixed(1) : '0.0';
+      return `
       <div class="rc-row">
         <span class="rc-label">${cat}</span>
         <div style="text-align:right">
-          <div class="rc-val">$${amt.toLocaleString()}</div>
+          <div class="rc-val">$${amt.toLocaleString()} <span style="color:#999;font-weight:400;font-size:11px">(${pct}%)</span></div>
           <div class="bar-wrap" style="width:100px">
-            <div class="bar-fill" style="width:${Math.min(100,amt/total*100).toFixed(1)}%;background:var(--green)"></div>
+            <div class="bar-fill" style="width:${Math.min(100,pct)}%;background:var(--green)"></div>
           </div>
         </div>
-      </div>`).join('');
+      </div>`;}).join('');
 
   document.getElementById('split-report').innerHTML = `
     <div class="rc-row"><span class="rc-label">🟠 三姐代墊</span><span class="rc-val amber">$${daedal.toLocaleString()}</span></div>
@@ -770,27 +774,67 @@ function selectMonth(m){
   renderReport();
 }
 
-// ══ 歷史營運總結（營收/稅額/毛利率/淨利率/實際保費） ══
-const FINANCE_FIELDS = [
-  ['revenue','營收', false],
-  ['tax','稅額', false],
+// ══ 歷史營運總結（自由格式貼上＋自動抓數字） ══
+const FINANCE_QUICK_FIELDS = [
+  ['revenue','未稅營收', false],
   ['grossMargin','毛利率', true],
+  ['netProfit','淨利', false],
   ['netMargin','淨利率', true],
+  ['payroll','人事薪資', false],
   ['premium','實際保費支出', false],
+  ['tax','稅額', false],
 ];
+
+// 從自由格式文字中盡力抓出關鍵數字，抓不到的欄位就不填，不強迫格式
+function extractFinanceFromText(text){
+  const rec = {};
+  let m;
+  if(m = text.match(/(?:未稅)?營收[:：]?\s*\$?([\d,]+)/)) rec.revenue = parseFloat(m[1].replace(/,/g,''));
+  if(m = text.match(/毛利率[:：]?\s*([\d.]+)\s*%/)) rec.grossMargin = parseFloat(m[1]);
+  if(m = text.match(/淨利率[:：]?\s*([\d.]+)\s*%/)) rec.netMargin = parseFloat(m[1]);
+  if(m = text.match(/淨利\$?([\d,]+)/)) rec.netProfit = parseFloat(m[1].replace(/,/g,''));
+  if(rec.netMargin===undefined){
+    const m2 = text.match(/淨利\$?[\d,]+[（(]([\d.]+)\s*%[）)]/);
+    if(m2) rec.netMargin = parseFloat(m2[1]);
+  }
+  if(m = text.match(/人事薪資[（(]共\s*\$?([\d,]+)[）)]/)) rec.payroll = parseFloat(m[1].replace(/,/g,''));
+  if(m = text.match(/(?:實際(?:支出)?保費|實際保費支出).{0,20}?共\s*\$?([\d,]+)/)) rec.premium = parseFloat(m[1].replace(/,/g,''));
+  else if(m = text.match(/(?:實際(?:支出)?保費|實際保費支出)[:：]?\s*\$?([\d,]+)/)) rec.premium = parseFloat(m[1].replace(/,/g,''));
+  if(m = text.match(/稅額[:：]?\s*\$?([\d,]+)/)) rec.tax = parseFloat(m[1].replace(/,/g,''));
+  return rec;
+}
+
+function guessMonthFromText(text){
+  const m = text.match(/(\d{1,2})\s*月/);
+  if(!m) return null;
+  const mm = parseInt(m[1],10);
+  if(mm<1||mm>12) return null;
+  const now = new Date();
+  let year = now.getFullYear();
+  if(mm > now.getMonth()+1) year -= 1;
+  return year+'-'+String(mm).padStart(2,'0');
+}
 
 function renderFinance(month){
   const container = document.getElementById('finance-report');
   if(!month){ container.innerHTML='<div style="color:#ccc;font-size:13px;text-align:center;padding:12px">尚無資料</div>'; return; }
   const data = DB.monthFinance[month] || {};
-  container.innerHTML = FINANCE_FIELDS.map(([key,label,isPct])=>{
+  const rows = FINANCE_QUICK_FIELDS.map(([key,label,isPct])=>{
     const v = data[key];
-    const display = (v===undefined||v===null) ? '未填' : (isPct ? v+'%' : '$'+Number(v).toLocaleString());
+    if(v===undefined||v===null) return '';
+    const display = isPct ? v+'%' : '$'+Number(v).toLocaleString();
     return `<div class="rc-row" style="cursor:pointer" onclick="editFinanceField('${month}','${key}','${label}')">
       <span class="rc-label">${label}${key==='premium'?' 🔺':''}</span>
       <span class="rc-val ${key==='premium'?'amber':''}">${display}</span>
     </div>`;
   }).join('');
+  const noteBlock = data.note ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--gray);
+      font-size:12.5px;color:#555;line-height:1.7;white-space:pre-wrap">${data.note}</div>` : '';
+  if(!rows && !noteBlock){
+    container.innerHTML = '<div style="color:#ccc;font-size:13px;text-align:center;padding:12px">尚無資料，可點右上「貼上匯入」</div>';
+  } else {
+    container.innerHTML = rows + noteBlock;
+  }
 }
 
 function editFinanceField(month, key, label){
@@ -814,15 +858,6 @@ function editFinanceField(month, key, label){
 }
 
 // ══ 貼上匯入歷史營運總結 ══
-const FINANCE_LABEL_MAP = {
-  '月份':'month', '月分':'month',
-  '營收':'revenue', '收入':'revenue', '總營收':'revenue',
-  '稅額':'tax', '稅金':'tax', '稅':'tax', '含稅營收':'revenue',
-  '毛利率':'grossMargin',
-  '淨利率':'netMargin', '近利率':'netMargin', '盡利率':'netMargin',
-  '保費':'premium', '實際保費':'premium', '實際支出保費':'premium', '實際保費支出':'premium', '實際支出的保費':'premium',
-};
-
 function openFinanceImport(){
   document.getElementById('finance-import-text').value='';
   document.getElementById('finance-modal').classList.add('show');
@@ -834,37 +869,19 @@ function closeFinanceImport(){
 function confirmFinanceImport(){
   const text = document.getElementById('finance-import-text').value.trim();
   if(!text){ showToast('請貼上內容'); return; }
-  const blocks = text.split(/\n\s*\n/);
+
+  const sel = document.getElementById('month-selector');
+  const month = guessMonthFromText(text) || (sel && sel.dataset.selected) || null;
+  if(!month){ showToast('看不出是哪個月份，請先在上面點選月份分頁'); return; }
+
+  const rec = extractFinanceFromText(text);
   const data = DB.monthFinance;
-  let count = 0;
-  blocks.forEach(block=>{
-    const lines = block.split('\n').map(l=>l.trim()).filter(Boolean);
-    let month = null;
-    const rec = {};
-    lines.forEach(line=>{
-      const m = line.match(/^([^:：]+)[:：]\s*(.+)$/);
-      if(!m) return;
-      const rawLabel = m[1].trim();
-      const val = m[2].trim();
-      if(rawLabel.includes('月份') || rawLabel.includes('月分')){
-        const mm = val.match(/(\d{4})[^\d]{0,2}(\d{1,2})/);
-        if(mm) month = mm[1]+'-'+mm[2].padStart(2,'0');
-        return;
-      }
-      const key = FINANCE_LABEL_MAP[rawLabel];
-      if(!key || key==='month') return;
-      const num = parseFloat(val.replace(/[%,$，\s]/g,''));
-      if(!isNaN(num)) rec[key]=num;
-    });
-    if(month && Object.keys(rec).length){
-      data[month] = {...(data[month]||{}), ...rec};
-      count++;
-    }
-  });
-  if(!count){ showToast('沒有偵測到有效的月份資料，請確認格式'); return; }
+  data[month] = {...(data[month]||{}), ...rec, note: text};
   DB.monthFinance = data;
+
   closeFinanceImport();
-  showToast(`✅ 已匯入 ${count} 個月份的資料`);
+  showToast(`✅ 已存入 ${month.replace('-','年')}月`);
+  if(sel) sel.dataset.selected = month;
   renderReport();
 }
 
@@ -901,11 +918,13 @@ function exportReport(){
 
   const fin = DB.monthFinance[m] || {};
   const finLines = [];
-  if(fin.revenue!=null) finLines.push(`營收：$${Number(fin.revenue).toLocaleString()}`);
-  if(fin.tax!=null) finLines.push(`稅額：$${Number(fin.tax).toLocaleString()}`);
+  if(fin.revenue!=null) finLines.push(`未稅營收：$${Number(fin.revenue).toLocaleString()}`);
   if(fin.grossMargin!=null) finLines.push(`毛利率：${fin.grossMargin}%`);
+  if(fin.netProfit!=null) finLines.push(`淨利：$${Number(fin.netProfit).toLocaleString()}`);
   if(fin.netMargin!=null) finLines.push(`淨利率：${fin.netMargin}%`);
+  if(fin.payroll!=null) finLines.push(`人事薪資：$${Number(fin.payroll).toLocaleString()}`);
   if(fin.premium!=null) finLines.push(`實際保費支出：$${Number(fin.premium).toLocaleString()}`);
+  if(fin.tax!=null) finLines.push(`稅額：$${Number(fin.tax).toLocaleString()}`);
 
   const text = [
     `【${m.replace('-','年')}月 支出彙整】`,
@@ -923,17 +942,21 @@ function exportReport(){
 }
 
 // ══ 匯出全部資料（備份） ══
-function exportAllData(){
-  const backup = {
-    exportedAt: new Date().toISOString(),
-    entries: DB.entries,
-    settles: DB.settles,
-    startBalance: DB.startBalance,
-    monthFinance: DB.monthFinance,
-  };
-  const text = JSON.stringify(backup, null, 2);
+function exportLedgerMonth(){
+  const select = document.getElementById('ledger-export-month');
+  const month = select && select.value;
+  if(!month){ showToast('尚無資料可匯出'); return; }
+  const entries = DB.entries.filter(e=>e.date.startsWith(month)).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const total = entries.reduce((s,e)=>s+e.amount,0);
+  const daedal = entries.filter(e=>e.daedal).reduce((s,e)=>s+e.amount,0);
+  const text = [
+    `【${month.replace('-','年')}月 流水帳】`,
+    `共 ${entries.length} 筆　總支出 $${total.toLocaleString()}　（代墊 $${daedal.toLocaleString()}）`,
+    '',
+    ...entries.map(e=>`${e.dateStr}　${e.cat}　${e.note}　$${e.amount.toLocaleString()}${e.daedal?'（代墊）':''}`),
+  ].join('\n');
   navigator.clipboard.writeText(text).then(()=>{
-    showToast('✅ 已複製全部資料到剪貼簿');
+    showToast(`✅ 已複製 ${month.replace('-','年')}月 流水帳`);
   }).catch(()=>{
     showToast('⚠️ 複製失敗，請改用截圖或手動複製');
   });
