@@ -138,27 +138,28 @@ body{background:var(--ink);font-family:var(--sans);min-height:100vh}
 .sr-label{color:var(--green);font-weight:600}
 .sr-amt{font-family:var(--mono);color:var(--green);font-weight:700}
 
-/* ── 流水帳列表 ── */
-.ledger-section{margin-bottom:20px}
-.section-date{
-  font-size:11px;color:#888;letter-spacing:2px;padding:6px 0;
-  border-bottom:1px solid #2a3545;margin-bottom:8px
-}
-.ledger-item{
-  background:var(--card);border-radius:10px;padding:12px 14px;
-  margin-bottom:6px;display:flex;align-items:center;gap:10px
-}
-.li-cat{font-size:18px;flex-shrink:0}
-.li-body{flex:1;min-width:0}
-.li-name{font-size:14px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.li-meta{font-size:11px;color:#999;margin-top:2px}
-.li-right{text-align:right;flex-shrink:0}
-.li-amt{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--ink)}
-.del-btn{font-size:11px;color:#ccc;cursor:pointer;margin-top:4px;text-align:right;
-  padding:2px 6px;border-radius:4px;transition:.1s}
-.del-btn:hover{background:#fee;color:var(--red)}
-.li-badge{font-size:10px;background:var(--amber-lt);color:var(--amber);
-  padding:2px 6px;border-radius:4px;margin-top:3px;display:inline-block;font-weight:600}
+/* ── 流水帳列表（月份手風琴） ── */
+.ledger-month{background:var(--card);border-radius:10px;margin-bottom:8px;overflow:hidden}
+.ledger-month-header{display:flex;justify-content:space-between;align-items:center;
+  padding:12px 14px;cursor:pointer}
+.lmh-left{display:flex;align-items:baseline;gap:8px;min-width:0}
+.lmh-month{font-size:14px;font-weight:700;color:var(--ink)}
+.lmh-count{font-size:11px;color:#999;flex-shrink:0}
+.lmh-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.lmh-total{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ink)}
+.lmh-chevron{font-size:10px;color:#aaa;width:12px;text-align:center}
+.ledger-month-body{display:none;border-top:1px solid var(--gray)}
+.ledger-month.open .ledger-month-body{display:block}
+.li-row{display:flex;align-items:center;gap:8px;padding:7px 14px;
+  border-bottom:1px solid var(--gray);font-size:13px}
+.li-row:last-child{border-bottom:none}
+.li-row-cat{font-size:13px;flex-shrink:0}
+.li-row-note{flex:1;min-width:0;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li-row-date{font-size:10px;color:#bbb;flex-shrink:0}
+.li-row-amt{font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--ink);flex-shrink:0;min-width:60px;text-align:right}
+.li-row-amt.daedal{color:var(--amber)}
+.li-row-del{font-size:11px;color:#ccc;cursor:pointer;flex-shrink:0;padding:2px 4px;border-radius:4px}
+.li-row-del:hover{background:#fee;color:var(--red)}
 
 /* ── 月度報表 ── */
 .month-selector{display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px}
@@ -262,6 +263,16 @@ body{background:var(--ink);font-family:var(--sans);min-height:100vh}
 
 <!-- ══ 頁面1：記帳 ══ -->
 <div class="page active" id="page-entry">
+  <div class="report-card" style="background:var(--ink);color:#fff">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div class="rc-title" style="color:#888;margin-bottom:6px">目前帳戶餘額</div>
+        <div style="font-family:var(--mono);font-size:28px;font-weight:700;color:#7effc0" id="balance-amount">$0</div>
+      </div>
+      <div style="font-size:11px;color:#888;text-decoration:underline;cursor:pointer;white-space:nowrap" onclick="editStartBalance()">設定起始餘額</div>
+    </div>
+  </div>
+
   <div class="entry-card">
     <div class="entry-label">金額</div>
     <div class="amount-row">
@@ -302,8 +313,8 @@ body{background:var(--ink);font-family:var(--sans);min-height:100vh}
   <!-- 支出快覽 -->
   <div class="report-card" id="today-summary">
     <div style="display:flex;gap:8px;margin-bottom:12px" id="period-tabs">
-      <div class="period-tab active" onclick="setPeriod('today')">今日</div>
-      <div class="period-tab" onclick="setPeriod('month')">本月</div>
+      <div class="period-tab active" onclick="setPeriod('today',this)">今日</div>
+      <div class="period-tab" onclick="setPeriod('month',this)">本月</div>
     </div>
     <div id="period-label" style="font-size:11px;color:#999;margin-bottom:8px"></div>
     <div id="today-rows"><div style="color:#ccc;font-size:13px;text-align:center;padding:12px">尚無記錄</div></div>
@@ -334,6 +345,8 @@ body{background:var(--ink);font-family:var(--sans);min-height:100vh}
   <div id="ledger-content">
     <div style="color:#888;font-size:13px;text-align:center;padding:40px">尚無流水帳記錄</div>
   </div>
+
+  <button class="submit-btn" style="background:var(--blue);margin-top:14px" onclick="exportAllData()">📤 匯出全部資料（備份）</button>
 </div>
 
 <!-- ══ 頁面4：月報表 ══ -->
@@ -361,7 +374,37 @@ body{background:var(--ink);font-family:var(--sans);min-height:100vh}
     </div>
   </div>
 
+  <div class="report-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="rc-title" style="margin:0">歷史營運總結</div>
+      <div style="font-size:11px;color:var(--blue);text-decoration:underline;cursor:pointer" onclick="openFinanceImport()">貼上匯入</div>
+    </div>
+    <div id="finance-report">
+      <div style="color:#ccc;font-size:13px;text-align:center;padding:12px">尚無資料，可點右上「貼上匯入」或點下方欄位手動輸入</div>
+    </div>
+  </div>
+
   <button class="submit-btn" onclick="exportReport()" style="background:var(--blue)">📋 複製財報格式</button>
+</div>
+
+<!-- ══ 歷史營運總結匯入 Modal ══ -->
+<div class="modal-overlay" id="finance-modal">
+  <div class="modal-sheet">
+    <div class="modal-title">📥 貼上歷史營運總結</div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.7">
+      每月一段，欄位用「標籤：數值」，例如：<br>
+      月份：2026-07<br>
+      營收：500000<br>
+      稅額：20000<br>
+      毛利率：45%<br>
+      淨利率：12%<br>
+      保費：14281<br>
+      多個月份請空行分隔
+    </div>
+    <textarea id="finance-import-text" rows="8" class="note-input" style="font-family:var(--mono);font-size:13px" placeholder="月份：2026-07&#10;營收：500000&#10;稅額：20000&#10;毛利率：45%&#10;淨利率：12%&#10;保費：14281"></textarea>
+    <button class="modal-btn confirm" onclick="confirmFinanceImport()">匯入</button>
+    <button class="modal-btn cancel" onclick="closeFinanceImport()">取消</button>
+  </div>
 </div>
 
 <!-- ══ 結清Modal ══ -->
@@ -411,6 +454,10 @@ const DB = {
   set entries(v){ localStorage.setItem('sw_entries', JSON.stringify(v)) },
   get settles(){ try{ return JSON.parse(localStorage.getItem('sw_settles')||'[]') }catch{return[]} },
   set settles(v){ localStorage.setItem('sw_settles', JSON.stringify(v)) },
+  get startBalance(){ return parseFloat(localStorage.getItem('sw_start_balance')||'0')||0 },
+  set startBalance(v){ localStorage.setItem('sw_start_balance', String(v)) },
+  get monthFinance(){ try{ return JSON.parse(localStorage.getItem('sw_month_finance')||'{}') }catch{return{}} },
+  set monthFinance(v){ localStorage.setItem('sw_month_finance', JSON.stringify(v)) },
 };
 
 // 自動類別偵測
@@ -499,30 +546,73 @@ function addEntry(){
 
 // ══ 渲染 ══
 function renderAll(){
+  renderBalance();
   renderToday();
   renderDaedal();
   renderLedger();
   renderReport();
 }
 
+// ══ 帳戶餘額 ══
+function computeBalance(){
+  const entries = DB.entries;
+  const companyPaid = entries.filter(e=>!e.daedal).reduce((s,e)=>s+e.amount,0);
+  const settled = DB.settles.reduce((s,x)=>s+x.amount,0);
+  return DB.startBalance - companyPaid - settled;
+}
+
+function renderBalance(){
+  document.getElementById('balance-amount').textContent = '$'+computeBalance().toLocaleString();
+}
+
+function editStartBalance(){
+  const cur = DB.startBalance;
+  const v = prompt('設定起始帳戶餘額（目前設定：$'+cur.toLocaleString()+'）', cur);
+  if(v===null) return;
+  const num = parseFloat(v);
+  if(isNaN(num)){ showToast('請輸入正確數字'); return; }
+  DB.startBalance = num;
+  renderBalance();
+  showToast('✅ 已更新起始餘額');
+}
+
+let currentPeriod = 'today';
+function setPeriod(p, el){
+  currentPeriod = p;
+  document.querySelectorAll('#period-tabs .period-tab').forEach(t=>t.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderToday();
+}
+
 function renderToday(){
-  const today = new Date().toISOString().slice(0,10);
-  const todayEntries = DB.entries.filter(e=>e.date===today);
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0,10);
+  const monthStr = todayStr.slice(0,7);
+  const periodEntries = currentPeriod==='today'
+    ? DB.entries.filter(e=>e.date===todayStr)
+    : DB.entries.filter(e=>e.date.startsWith(monthStr));
+  const totalLabel = currentPeriod==='today' ? '今日合計' : '本月合計';
+
+  const label = document.getElementById('period-label');
+  label.textContent = currentPeriod==='today'
+    ? now.toLocaleDateString('zh-TW',{month:'long',day:'numeric',weekday:'short'})
+    : monthStr.replace('-','年')+'月';
+
   const container = document.getElementById('today-rows');
-  if(!todayEntries.length){
+  if(!periodEntries.length){
     container.innerHTML='<div style="color:#ccc;font-size:13px;text-align:center;padding:12px">尚無記錄</div>';
     return;
   }
-  const total = todayEntries.reduce((s,e)=>s+e.amount,0);
-  const daedal = todayEntries.filter(e=>e.daedal).reduce((s,e)=>s+e.amount,0);
-  container.innerHTML = todayEntries.map(e=>`
+  const total = periodEntries.reduce((s,e)=>s+e.amount,0);
+  const daedal = periodEntries.filter(e=>e.daedal).reduce((s,e)=>s+e.amount,0);
+  container.innerHTML = periodEntries.map(e=>`
     <div class="rc-row">
       <span class="rc-label">${e.cat.slice(0,2)} ${e.note}</span>
       <span class="rc-val ${e.daedal?'amber':''}">$${e.amount.toLocaleString()}</span>
     </div>
   `).join('') + `
     <div class="rc-total">
-      <span class="rc-total-label">今日合計${daedal?`（代墊$${daedal.toLocaleString()}）`:''}</span>
+      <span class="rc-total-label">${totalLabel}${daedal?`（代墊$${daedal.toLocaleString()}）`:''}</span>
       <span style="font-family:var(--mono);font-size:16px;font-weight:700;color:#7effc0">$${total.toLocaleString()}</span>
     </div>`;
 }
@@ -570,6 +660,8 @@ function renderDaedal(){
   }
 }
 
+let ledgerOpenMonths = null;
+
 function renderLedger(){
   const entries = DB.entries;
   const container = document.getElementById('ledger-content');
@@ -577,38 +669,46 @@ function renderLedger(){
     container.innerHTML='<div style="color:#888;font-size:13px;text-align:center;padding:40px">尚無流水帳記錄</div>';
     return;
   }
-  const groups = {};
-  entries.forEach(e=>{
-    if(!groups[e.date]) groups[e.date]=[];
-    groups[e.date].push(e);
-  });
+
+  const months = [...new Set(entries.map(e=>e.date.slice(0,7)))].sort((a,b)=>b.localeCompare(a));
+  if(!ledgerOpenMonths) ledgerOpenMonths = new Set([months[0]]);
+
   let html = '';
-  Object.keys(groups).sort((a,b)=>b.localeCompare(a)).forEach(date=>{
-    const dayEntries = groups[date];
-    const total = dayEntries.reduce((s,e)=>s+e.amount,0);
-    const d = new Date(date+'T00:00:00');
-    const label = d.toLocaleDateString('zh-TW',{month:'long',day:'numeric',weekday:'short'});
-    html += '<div class="ledger-section">';
-    html += '<div class="section-date">'+label+'　小計 $'+total.toLocaleString()+'</div>';
-    dayEntries.forEach(e=>{
-      html += '<div class="ledger-item">';
-      html += '<div class="li-cat">'+e.cat.slice(0,2)+'</div>';
-      html += '<div class="li-body"><div class="li-name">'+e.note+'</div><div class="li-meta">'+e.cat.slice(2)+'</div></div>';
-      html += '<div class="li-right">';
-      html += '<div class="li-amt">$'+e.amount.toLocaleString()+'</div>';
-      if(e.daedal) html += '<div class="li-badge">三姐代墊</div>';
-      html += '<div class="del-btn" onclick="deleteEntry('+e.id+',event)">✕ 刪除</div>';
-      html += '</div></div>';
+  months.forEach(m=>{
+    const mEntries = entries.filter(e=>e.date.startsWith(m)).slice().sort((a,b)=>b.date.localeCompare(a.date));
+    const total = mEntries.reduce((s,e)=>s+e.amount,0);
+    const isOpen = ledgerOpenMonths.has(m);
+    html += `<div class="ledger-month ${isOpen?'open':''}">`;
+    html += `<div class="ledger-month-header" onclick="toggleLedgerMonth('${m}')">`;
+    html += `<div class="lmh-left"><span class="lmh-month">${m.replace('-','年')}月</span><span class="lmh-count">共${mEntries.length}筆</span></div>`;
+    html += `<div class="lmh-right"><span class="lmh-total">$${total.toLocaleString()}</span><span class="lmh-chevron">${isOpen?'▾':'▸'}</span></div>`;
+    html += `</div>`;
+    html += `<div class="ledger-month-body">`;
+    mEntries.forEach(e=>{
+      const d = new Date(e.date+'T00:00:00');
+      const shortDate = (d.getMonth()+1)+'/'+d.getDate();
+      html += `<div class="li-row">
+        <span class="li-row-cat">${e.cat.slice(0,2)}</span>
+        <span class="li-row-note">${e.note}</span>
+        <span class="li-row-date">${shortDate}</span>
+        <span class="li-row-amt ${e.daedal?'daedal':''}">$${e.amount.toLocaleString()}</span>
+        <span class="li-row-del" onclick="deleteEntry(${e.id},event)">✕</span>
+      </div>`;
     });
-    html += '</div>';
+    html += `</div></div>`;
   });
   container.innerHTML = html;
 }
 
+function toggleLedgerMonth(m){
+  if(ledgerOpenMonths.has(m)) ledgerOpenMonths.delete(m); else ledgerOpenMonths.add(m);
+  renderLedger();
+}
+
 function renderReport(){
   const entries = DB.entries;
-  // 取得所有月份
-  const months = [...new Set(entries.map(e=>e.date.slice(0,7)))].sort((a,b)=>b.localeCompare(a));
+  // 取得所有月份（含只有營運總結、尚無流水帳的月份）
+  const months = [...new Set([...entries.map(e=>e.date.slice(0,7)), ...Object.keys(DB.monthFinance)])].sort((a,b)=>b.localeCompare(a));
 
   const sel = document.getElementById('month-selector');
   if(!months.length){ sel.innerHTML=''; return; }
@@ -656,15 +756,115 @@ function renderReport(){
       <span style="font-family:var(--mono);font-size:20px;font-weight:700;color:#7effc0">$${total.toLocaleString()}</span>
     </div>
     <div style="font-size:11px;color:#666;line-height:1.8">
-      共 ${mEntries.length} 筆　｜　
-      代墊 $${daedal.toLocaleString()}（${total?Math.round(daedal/total*100):0}%）　｜　
+      共 ${mEntries.length} 筆　｜
+      代墊 $${daedal.toLocaleString()}（${total?Math.round(daedal/total*100):0}%）　｜
       自付 $${company.toLocaleString()}
     </div>`;
+
+  renderFinance(currentMonth);
 }
 
 function selectMonth(m){
   const sel = document.getElementById('month-selector');
   sel.dataset.selected = m;
+  renderReport();
+}
+
+// ══ 歷史營運總結（營收/稅額/毛利率/淨利率/實際保費） ══
+const FINANCE_FIELDS = [
+  ['revenue','營收', false],
+  ['tax','稅額', false],
+  ['grossMargin','毛利率', true],
+  ['netMargin','淨利率', true],
+  ['premium','實際保費支出', false],
+];
+
+function renderFinance(month){
+  const container = document.getElementById('finance-report');
+  if(!month){ container.innerHTML='<div style="color:#ccc;font-size:13px;text-align:center;padding:12px">尚無資料</div>'; return; }
+  const data = DB.monthFinance[month] || {};
+  container.innerHTML = FINANCE_FIELDS.map(([key,label,isPct])=>{
+    const v = data[key];
+    const display = (v===undefined||v===null) ? '未填' : (isPct ? v+'%' : '$'+Number(v).toLocaleString());
+    return `<div class="rc-row" style="cursor:pointer" onclick="editFinanceField('${month}','${key}','${label}')">
+      <span class="rc-label">${label}${key==='premium'?' 🔺':''}</span>
+      <span class="rc-val ${key==='premium'?'amber':''}">${display}</span>
+    </div>`;
+  }).join('');
+}
+
+function editFinanceField(month, key, label){
+  const data = DB.monthFinance;
+  const cur = (data[month]||{})[key];
+  const v = prompt(`輸入 ${month} 的「${label}」`, cur===undefined||cur===null?'':cur);
+  if(v===null) return;
+  if(v.trim()===''){
+    if(data[month]) delete data[month][key];
+    DB.monthFinance = data;
+    renderFinance(month);
+    return;
+  }
+  const num = parseFloat(v);
+  if(isNaN(num)){ showToast('請輸入數字'); return; }
+  if(!data[month]) data[month]={};
+  data[month][key] = num;
+  DB.monthFinance = data;
+  renderFinance(month);
+  renderReport();
+}
+
+// ══ 貼上匯入歷史營運總結 ══
+const FINANCE_LABEL_MAP = {
+  '月份':'month', '月分':'month',
+  '營收':'revenue', '收入':'revenue', '總營收':'revenue',
+  '稅額':'tax', '稅金':'tax', '稅':'tax', '含稅營收':'revenue',
+  '毛利率':'grossMargin',
+  '淨利率':'netMargin', '近利率':'netMargin', '盡利率':'netMargin',
+  '保費':'premium', '實際保費':'premium', '實際支出保費':'premium', '實際保費支出':'premium', '實際支出的保費':'premium',
+};
+
+function openFinanceImport(){
+  document.getElementById('finance-import-text').value='';
+  document.getElementById('finance-modal').classList.add('show');
+}
+function closeFinanceImport(){
+  document.getElementById('finance-modal').classList.remove('show');
+}
+
+function confirmFinanceImport(){
+  const text = document.getElementById('finance-import-text').value.trim();
+  if(!text){ showToast('請貼上內容'); return; }
+  const blocks = text.split(/\n\s*\n/);
+  const data = DB.monthFinance;
+  let count = 0;
+  blocks.forEach(block=>{
+    const lines = block.split('\n').map(l=>l.trim()).filter(Boolean);
+    let month = null;
+    const rec = {};
+    lines.forEach(line=>{
+      const m = line.match(/^([^:：]+)[:：]\s*(.+)$/);
+      if(!m) return;
+      const rawLabel = m[1].trim();
+      const val = m[2].trim();
+      if(rawLabel.includes('月份') || rawLabel.includes('月分')){
+        const mm = val.match(/(\d{4})[^\d]{0,2}(\d{1,2})/);
+        if(mm) month = mm[1]+'-'+mm[2].padStart(2,'0');
+        return;
+      }
+      const key = FINANCE_LABEL_MAP[rawLabel];
+      if(!key || key==='month') return;
+      const num = parseFloat(val.replace(/[%,$，\s]/g,''));
+      if(!isNaN(num)) rec[key]=num;
+    });
+    if(month && Object.keys(rec).length){
+      data[month] = {...(data[month]||{}), ...rec};
+      count++;
+    }
+  });
+  if(!count){ showToast('沒有偵測到有效的月份資料，請確認格式'); return; }
+  DB.monthFinance = data;
+  closeFinanceImport();
+  showToast(`✅ 已匯入 ${count} 個月份的資料`);
   renderReport();
 }
 
@@ -699,18 +899,44 @@ function exportReport(){
   const catTotals = {};
   entries.forEach(e=>{ catTotals[e.cat]=(catTotals[e.cat]||0)+e.amount });
 
+  const fin = DB.monthFinance[m] || {};
+  const finLines = [];
+  if(fin.revenue!=null) finLines.push(`營收：$${Number(fin.revenue).toLocaleString()}`);
+  if(fin.tax!=null) finLines.push(`稅額：$${Number(fin.tax).toLocaleString()}`);
+  if(fin.grossMargin!=null) finLines.push(`毛利率：${fin.grossMargin}%`);
+  if(fin.netMargin!=null) finLines.push(`淨利率：${fin.netMargin}%`);
+  if(fin.premium!=null) finLines.push(`實際保費支出：$${Number(fin.premium).toLocaleString()}`);
+
   const text = [
     `【${m.replace('-','年')}月 支出彙整】`,
     `總支出：$${total.toLocaleString()}`,
     `三姐代墊：$${daedal.toLocaleString()}　公司自付：$${(total-daedal).toLocaleString()}`,
     '',
     ...Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).map(([c,a])=>`${c}：$${a.toLocaleString()}`),
+    ...(finLines.length ? ['', '--- 歷史營運總結 ---', ...finLines] : []),
     '',
     '--- 代墊明細 ---',
     ...entries.filter(e=>e.daedal).map(e=>`${e.dateStr} ${e.note} $${e.amount.toLocaleString()}`),
   ].join('\n');
 
   navigator.clipboard.writeText(text).then(()=>showToast('✅ 已複製財報格式'));
+}
+
+// ══ 匯出全部資料（備份） ══
+function exportAllData(){
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    entries: DB.entries,
+    settles: DB.settles,
+    startBalance: DB.startBalance,
+    monthFinance: DB.monthFinance,
+  };
+  const text = JSON.stringify(backup, null, 2);
+  navigator.clipboard.writeText(text).then(()=>{
+    showToast('✅ 已複製全部資料到剪貼簿');
+  }).catch(()=>{
+    showToast('⚠️ 複製失敗，請改用截圖或手動複製');
+  });
 }
 
 // ══ 工具 ══
@@ -762,4 +988,3 @@ renderAll();
 </script>
 </body>
 </html>
-            <div onclick="deleteEntry(${{e.id}},event)" style="font-size:11px;color:#bbb;cursor:pointer;text-align:right;margin-top:4px">✕ 刪除</div>
