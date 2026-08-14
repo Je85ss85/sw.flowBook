@@ -263,16 +263,6 @@ body{background:var(--ink);font-family:var(--sans);min-height:100vh}
 
 <!-- ══ 頁面1：記帳 ══ -->
 <div class="page active" id="page-entry">
-  <div class="report-card" style="background:var(--ink);color:#fff">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div class="rc-title" style="color:#888;margin-bottom:6px">目前帳戶餘額</div>
-        <div style="font-family:var(--mono);font-size:28px;font-weight:700;color:#7effc0" id="balance-amount">$0</div>
-      </div>
-      <div style="font-size:11px;color:#888;text-decoration:underline;cursor:pointer;white-space:nowrap" onclick="editStartBalance()">設定起始餘額</div>
-    </div>
-  </div>
-
   <div class="entry-card">
     <div class="entry-label">金額</div>
     <div class="amount-row">
@@ -318,6 +308,20 @@ body{background:var(--ink);font-family:var(--sans);min-height:100vh}
     </div>
     <div id="period-label" style="font-size:11px;color:#999;margin-bottom:8px"></div>
     <div id="today-rows"><div style="color:#ccc;font-size:13px;text-align:center;padding:12px">尚無記錄</div></div>
+  </div>
+
+  <div class="report-card" style="background:var(--ink);color:#fff">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="rc-title" style="margin:0;color:#888">帳戶餘額紀錄</div>
+      <div style="font-size:11px;color:#888;text-decoration:underline;cursor:pointer;white-space:nowrap" onclick="addBalanceRecord()">➕ 記錄</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <select id="balance-history-select" onchange="renderBalance()" style="flex:1;padding:0 10px;border-radius:8px;
+        border:1px solid #2a3545;background:#1a2330;color:#fff;font-size:13px"></select>
+      <div style="cursor:pointer;color:#888;font-size:13px;padding:0 6px;display:flex;align-items:center" onclick="deleteBalanceRecord()">🗑</div>
+    </div>
+    <div style="font-family:var(--mono);font-size:28px;font-weight:700;color:#7effc0" id="balance-amount">尚無紀錄</div>
+    <div style="font-size:11px;color:#888;margin-top:2px" id="balance-date-label">點上方「➕ 記錄」新增</div>
   </div>
 </div>
 
@@ -451,8 +455,8 @@ const DB = {
   set entries(v){ localStorage.setItem('sw_entries', JSON.stringify(v)) },
   get settles(){ try{ return JSON.parse(localStorage.getItem('sw_settles')||'[]') }catch{return[]} },
   set settles(v){ localStorage.setItem('sw_settles', JSON.stringify(v)) },
-  get startBalance(){ return parseFloat(localStorage.getItem('sw_start_balance')||'0')||0 },
-  set startBalance(v){ localStorage.setItem('sw_start_balance', String(v)) },
+  get balanceLog(){ try{ return JSON.parse(localStorage.getItem('sw_balance_log')||'[]') }catch{return[]} },
+  set balanceLog(v){ localStorage.setItem('sw_balance_log', JSON.stringify(v)) },
   get monthFinance(){ try{ return JSON.parse(localStorage.getItem('sw_month_finance')||'{}') }catch{return{}} },
   set monthFinance(v){ localStorage.setItem('sw_month_finance', JSON.stringify(v)) },
 };
@@ -550,27 +554,51 @@ function renderAll(){
   renderReport();
 }
 
-// ══ 帳戶餘額 ══
-function computeBalance(){
-  const entries = DB.entries;
-  const companyPaid = entries.filter(e=>!e.daedal).reduce((s,e)=>s+e.amount,0);
-  const settled = DB.settles.reduce((s,x)=>s+x.amount,0);
-  return DB.startBalance - companyPaid - settled;
+// ══ 帳戶餘額紀錄（純手動記錄，不做任何加減計算） ══
+function addBalanceRecord(){
+  const dateInput = prompt('這筆餘額是哪一天的？（格式 YYYY-MM-DD）', new Date().toISOString().slice(0,10));
+  if(dateInput===null) return;
+  const date = dateInput.trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){ showToast('日期格式請用 YYYY-MM-DD'); return; }
+  const amtInput = prompt('這一天帳戶實際餘額是多少？');
+  if(amtInput===null) return;
+  const amt = parseFloat(amtInput);
+  if(isNaN(amt)){ showToast('請輸入正確數字'); return; }
+  const log = DB.balanceLog;
+  log.push({ id: Date.now(), date, amount: amt });
+  DB.balanceLog = log;
+  showToast('✅ 已記錄餘額');
+  renderBalance();
+}
+
+function deleteBalanceRecord(){
+  const select = document.getElementById('balance-history-select');
+  const id = select && select.value;
+  if(!id){ showToast('尚無紀錄可刪除'); return; }
+  if(!confirm('確認刪除這筆餘額紀錄？')) return;
+  const log = DB.balanceLog.filter(r=>String(r.id)!==id);
+  DB.balanceLog = log;
+  showToast('🗑️ 已刪除');
+  renderBalance();
 }
 
 function renderBalance(){
-  document.getElementById('balance-amount').textContent = '$'+computeBalance().toLocaleString();
-}
-
-function editStartBalance(){
-  const cur = DB.startBalance;
-  const v = prompt('設定起始帳戶餘額（目前設定：$'+cur.toLocaleString()+'）', cur);
-  if(v===null) return;
-  const num = parseFloat(v);
-  if(isNaN(num)){ showToast('請輸入正確數字'); return; }
-  DB.startBalance = num;
-  renderBalance();
-  showToast('✅ 已更新起始餘額');
+  const log = DB.balanceLog;
+  const select = document.getElementById('balance-history-select');
+  const amountEl = document.getElementById('balance-amount');
+  const dateLabelEl = document.getElementById('balance-date-label');
+  if(!log.length){
+    select.innerHTML = '';
+    amountEl.textContent = '尚無紀錄';
+    dateLabelEl.textContent = '點上方「➕ 記錄」新增';
+    return;
+  }
+  const sorted = log.slice().sort((a,b)=>b.date.localeCompare(a.date) || b.id-a.id);
+  const keepSelected = sorted.some(r=>String(r.id)===select.value) ? select.value : String(sorted[0].id);
+  select.innerHTML = sorted.map(r=>`<option value="${r.id}" ${String(r.id)===keepSelected?'selected':''}>${r.date}　$${r.amount.toLocaleString()}</option>`).join('');
+  const chosen = sorted.find(r=>String(r.id)===keepSelected) || sorted[0];
+  amountEl.textContent = '$'+chosen.amount.toLocaleString();
+  dateLabelEl.textContent = chosen.date + ' 當時餘額';
 }
 
 let currentPeriod = 'today';
